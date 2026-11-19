@@ -208,3 +208,21 @@ swift tool/generate_app_icons.swift
 - 非标准代币、自定义合约及特殊扩展可能不兼容现有转账流程。
 - 交易记录的范围取决于当前查询接口；部分记录、统计字段或行情可能不可用。
 - 新增自定义代币的显示名称只是标签，代币身份应按网络与合约地址核对。
+
+## 下载与安装
+
+安装包发布在 [GitHub Releases](https://github.com/HuNiu-rgp/LinkWallet/releases)。当前提供 Apple Silicon（arm64）版本：
+
+- **DMG**：打开后将 `LinkWallet.app` 拖入 `Applications`。
+- **ZIP**：解压后将 `LinkWallet.app` 移入 `/Applications`。
+- **SHA256SUMS**：用于校验下载文件完整性，将校验文件与安装包置于同一目录后执行 `shasum -a 256 -c SHA256SUMS`。
+
+升级前先使用 `⌘Q` 退出旧版。当前开发预览版使用本地 ad-hoc 签名，未进行 Apple Developer ID 签名与公证；系统可能阻止从网络下载的应用运行。
+
+开发者可运行以下脚本，依次完成依赖安装、静态检查、测试、Release 构建、签名完整性校验及 DMG / ZIP 打包：
+
+```sh
+./scripts/package_macos.sh
+```
+
+输出位于 `dist/`，该目录不提交到 Git；安装包作为 GitHub Release 附件分发。

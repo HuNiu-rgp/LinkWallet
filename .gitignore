@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Locally generated release packages; publish these as GitHub Release assets.
+/dist/
