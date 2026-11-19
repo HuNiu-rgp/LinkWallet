@@ -45,8 +45,9 @@ class WalletList extends StatelessWidget {
                     const SizedBox(width: 8),
                   ],
                   ShadButton.outline(
-                    onPressed: () => c.selectAccount(a),
-                    child: const Text('查看'),
+                    onPressed: () => actions.deleteWallet(a),
+                    foregroundColor: context.palette.destructive,
+                    child: const Text('删除'),
                   ),
                 ],
               ),

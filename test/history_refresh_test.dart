@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:chainvault/core/wallet.dart';
 import 'package:chainvault/features/tokens/token_portfolio.dart';
 import 'package:chainvault/features/wallets/wallet_controller.dart';
@@ -38,6 +39,8 @@ class CountingTokens extends TokenPortfolio {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() => SharedPreferences.setMockInitialValues({}));
   test(
     'Broadcast appears immediately, survives index lag and reconciles by hash',
     () async {
@@ -51,6 +54,8 @@ void main() {
       c.recordBroadcast(c.chain, c.selected!, {
         'hash': 'sent',
         'pending': true,
+        'incoming': false,
+        'symbol': 'TRX',
         'amount': '0.1',
       });
       expect(c.visibleTransactions.single['hash'], 'sent');

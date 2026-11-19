@@ -95,7 +95,7 @@ void main() {
       final theme = ThemeController(store: MemoryThemeStore());
       await tester.pumpWidget(LinkWalletApp(store: store, theme: theme));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('设置与说明').first);
+      await tester.tap(find.byKey(const ValueKey('nav-3')));
       await tester.pumpAndSettle();
       expect(find.text('外观主题'), findsOneWidget);
       await tester.tap(find.text('浅色模式'));
@@ -107,9 +107,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(theme.palette, 'violet');
       expect(store.loads, 1);
-      await tester.tap(find.text('资产总览').first);
+      await tester.tap(find.byKey(const ValueKey('nav-0')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('导入钱包'));
+      await tester.tap(find.text('添加'));
       await tester.pumpAndSettle();
       final colors = ShadTheme.of(
         tester.element(find.byType(ShadDialog)),
@@ -140,13 +140,13 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(
-      ShadTheme.of(tester.element(find.text('你的资产，一目了然'))).brightness,
+      ShadTheme.of(tester.element(find.text('我的钱包'))).brightness,
       Brightness.light,
     );
     tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
     await tester.pumpAndSettle();
     expect(
-      ShadTheme.of(tester.element(find.text('你的资产，一目了然'))).brightness,
+      ShadTheme.of(tester.element(find.text('我的钱包'))).brightness,
       Brightness.dark,
     );
     await tester.pumpWidget(const SizedBox());

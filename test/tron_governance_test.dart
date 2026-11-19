@@ -4,6 +4,31 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:on_chain/on_chain.dart' as oc;
 
 void main() {
+  test(
+    'Stake totals include outgoing delegation without increasing unstakeable balance',
+    () {
+      final account = {
+        'frozenV2': [
+          {'amount': 1507204993},
+          {'type': 'ENERGY', 'amount': 36533556568},
+        ],
+        'delegated_frozenV2_balance_for_bandwidth': 492795007,
+        'account_resource': {
+          'delegated_frozenV2_balance_for_energy': 13466443432,
+        },
+        'acquired_delegated_frozenV2_balance_for_bandwidth': 999999999,
+      };
+      expect(
+        TronGovernance.totalStake(account, 'ENERGY'),
+        BigInt.from(50000000000),
+      );
+      expect(
+        TronGovernance.totalStake(account, 'BANDWIDTH'),
+        BigInt.from(2000000000),
+      );
+      expect(TronGovernance.stake(account, 'ENERGY'), BigInt.from(36533556568));
+    },
+  );
   test('Reclaim all includes only unlocked stake of the selected resource', () {
     final response = {
       'delegatedResource': [

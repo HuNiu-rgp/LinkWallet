@@ -24,7 +24,7 @@ void main() {
     expect(find.text('TRON 主网'), findsOneWidget);
     expect(find.text('区块链网络'), findsNothing);
     expect(tester.takeException(), isNull);
-    await tester.tap(find.text('＋ 创建钱包'));
+    await tester.tap(find.text('创建钱包'));
     await tester.pumpAndSettle();
     expect(find.text('钱包名称'), findsOneWidget);
     expect(find.byType(ShadDialog), findsOneWidget);
@@ -41,7 +41,7 @@ void main() {
     await tester.tap(find.text('Solana 主网'));
     await tester.pumpAndSettle();
     expect(find.text('添加你的第一个 Solana 钱包'), findsOneWidget);
-    await tester.tap(find.text('导入钱包'));
+    await tester.tap(find.text('添加'));
     await tester.pumpAndSettle();
     expect(find.byType(ShadDialog), findsOneWidget);
     expect(find.byType(ShadInput), findsNWidgets(2));

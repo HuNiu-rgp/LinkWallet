@@ -72,6 +72,30 @@ class WalletStore {
     return account;
   }
 
+  Future<void> remove(Account account, List<Account> existing) async {
+    final remaining = existing
+        .where(
+          (a) =>
+              !(a.family == account.family &&
+                  a.address == account.address &&
+                  a.chainId == account.chainId),
+        )
+        .toList();
+    await save(remaining);
+    if (!remaining.any(
+      (a) => a.family == account.family && a.address == account.address,
+    )) {
+      try {
+        await storage.delete(
+          key: 'chainvault.key.${account.family.name}.${account.address}',
+        );
+      } catch (_) {
+        await save(existing);
+        rethrow;
+      }
+    }
+  }
+
   String generateKey() => EthPrivateKey.createRandom(
     Random.secure(),
   ).privateKeyInt.toRadixString(16).padLeft(64, '0');

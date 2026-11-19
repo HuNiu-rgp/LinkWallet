@@ -39,44 +39,45 @@ class DashboardPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    ['你的资产，一目了然', '管理你的钱包', '链上活动记录'][c.page],
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -1,
-                      color: context.palette.foreground,
+        if (c.page != 0)
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ['你的资产，一目了然', '管理你的钱包', '链上活动记录'][c.page],
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -1,
+                        color: context.palette.foreground,
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    c.page == 0 ? '一个安静、安全的多链资产空间。' : '所有数据来自所选网络，私钥只保存在本机。',
-                    style: TextStyle(
-                      color: context.palette.mutedForeground,
-                      fontSize: 13,
+                    SizedBox(height: 8),
+                    Text(
+                      c.page == 0 ? '一个安静、安全的多链资产空间。' : '所有数据来自所选网络，私钥只保存在本机。',
+                      style: TextStyle(
+                        color: context.palette.mutedForeground,
+                        fontSize: 13,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            ShadButton.outline(
-              onPressed: () => actions.addWallet(),
-              child: Text('导入钱包'),
-            ),
-            SizedBox(width: 10),
-            ShadButton(
-              onPressed: () => actions.addWallet(create: true),
-              child: Text('＋ 创建钱包'),
-            ),
-          ],
-        ),
-        SizedBox(height: 28),
+              ShadButton.outline(
+                onPressed: () => actions.addWallet(),
+                child: Text('导入钱包'),
+              ),
+              SizedBox(width: 10),
+              ShadButton(
+                onPressed: () => actions.addWallet(create: true),
+                child: Text('＋ 创建钱包'),
+              ),
+            ],
+          ),
+        if (c.page != 0) SizedBox(height: 20),
         if (c.page == 1) ...[
           (c.accounts.isEmpty
               ? empty(context)
@@ -101,11 +102,48 @@ class DashboardPage extends StatelessWidget {
         else ...[
           if (c.page == 0) ...[
             BalanceCard(c: c, actions: actions),
-            SizedBox(height: 24),
-            AssetCard(c: c, actions: actions),
-            SizedBox(height: 24),
-          ],
-          HistoryCard(c: c, actions: actions),
+            const SizedBox(height: 24),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < 850) {
+                  return Column(
+                    children: [
+                      AssetCard(c: c, actions: actions, embedded: true),
+                      const SizedBox(height: 24),
+                      HistoryCard(c: c, actions: actions, embedded: true),
+                    ],
+                  );
+                }
+                return IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        flex: 48,
+                        child: AssetCard(
+                          c: c,
+                          actions: actions,
+                          embedded: true,
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      VerticalDivider(width: 1, color: context.palette.border),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        flex: 52,
+                        child: HistoryCard(
+                          c: c,
+                          actions: actions,
+                          embedded: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ] else
+            HistoryCard(c: c, actions: actions),
         ],
       ],
     );

@@ -19,6 +19,25 @@ class TokenPortfolio extends ChangeNotifier {
   int _epoch = 0;
   Chain? _chain;
   String? _owner;
+  final Map<String, (List<TokenBalance>, String?)> _cache = {};
+  final Map<String, int> _latest = {};
+  String _key(Chain chain, String owner) => '${chain.id}:$owner';
+  void forget(String address) {
+    _cache.removeWhere((key, _) => key.endsWith(':$address'));
+    _latest.removeWhere((key, _) => key.endsWith(':$address'));
+  }
+
+  void restore(Chain chain, String? owner) {
+    _epoch++;
+    _chain = chain;
+    _owner = owner;
+    final saved = owner == null ? null : _cache[_key(chain, owner)];
+    balances = saved == null ? [] : List.of(saved.$1);
+    configurationError = saved?.$2;
+    loading = false;
+    if (!_disposed) notifyListeners();
+  }
+
   void clear() {
     _epoch++;
     balances = [];
@@ -26,62 +45,72 @@ class TokenPortfolio extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  bool _current(int epoch) => !_disposed && epoch == _epoch;
   Future<void> refresh(Chain chain, String? owner) async {
     final epoch = ++_epoch;
+    if (owner != null) _latest[_key(chain, owner)] = epoch;
     _chain = chain;
     _owner = owner;
     balances = presetTokens(chain).map((t) => TokenBalance(t)).toList();
     loading = owner != null;
     configurationError = null;
     if (!_disposed) notifyListeners();
+    String? queryError;
     var definitions = presetTokens(chain);
     try {
       final custom = await repository.load();
-      if (!_current(epoch)) return;
+      if (_disposed) return;
       final known = definitions.map((t) => t.id).toSet();
       definitions = [
         ...definitions,
         ...custom.where((t) => t.chainId == chain.id && known.add(t.id)),
       ];
     } catch (_) {
-      if (_current(epoch)) configurationError = '自定义代币配置读取失败，请重试';
+      queryError = '自定义代币配置读取失败，请重试';
     }
-    if (!_current(epoch)) return;
-    balances = definitions.map((t) => TokenBalance(t)).toList();
-    notifyListeners();
+    if (_disposed) return;
+    final result = definitions.map((t) => TokenBalance(t)).toList();
+    void publish({bool done = false}) {
+      if (_disposed ||
+          (owner != null && _latest[_key(chain, owner)] != epoch)) {
+        return;
+      }
+      if (owner != null) {
+        _cache[_key(chain, owner)] = (List.of(result), queryError);
+      }
+      if (_chain?.id == chain.id && _owner == owner) {
+        balances = List.of(result);
+        configurationError = queryError;
+        loading = !done;
+        notifyListeners();
+      }
+    }
+
+    publish();
     if (owner == null) {
-      loading = false;
-      notifyListeners();
+      publish(done: true);
       return;
     }
     final service = serviceFactory(chain);
     try {
-      // Sequential requests avoid bursts against public nodes, notably TronGrid.
       for (var i = 0; i < definitions.length; i++) {
-        if (!_current(epoch)) return;
+        if (_disposed) return;
         final token = definitions[i];
         try {
           final amount = await TokenService(service).balance(token, owner);
-          if (!_current(epoch)) return;
-          balances[i] = TokenBalance(token, amount: amount);
+          result[i] = TokenBalance(token, amount: amount);
         } catch (error) {
-          if (!_current(epoch)) return;
-          balances[i] = TokenBalance(
+          result[i] = TokenBalance(
             token,
             error: error is StateError
                 ? error.message.toString()
                 : '查询失败，请检查网络后重试',
           );
         }
-        notifyListeners();
+        publish();
       }
     } finally {
       service.dispose();
-      if (_current(epoch)) {
-        loading = false;
-        notifyListeners();
-      }
+      publish(done: true);
     }
   }
 

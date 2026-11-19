@@ -13,6 +13,7 @@ class ResourceDetails extends StatefulWidget {
   final Account owner;
   final Map account, resources;
   final ResourceOperation onOperate;
+  final bool embedded;
   const ResourceDetails({
     super.key,
     required this.api,
@@ -20,6 +21,7 @@ class ResourceDetails extends StatefulWidget {
     required this.account,
     required this.resources,
     required this.onOperate,
+    this.embedded = false,
   });
   @override
   State<ResourceDetails> createState() => _ResourceDetailsState();
@@ -59,17 +61,15 @@ class _ResourceDetailsState extends State<ResourceDetails> {
         ).toString().split('.').first;
 
   @override
-  Widget build(BuildContext context) => ShadCard(
-    width: double.infinity,
-    padding: const EdgeInsets.all(16),
-    child: Column(
+  Widget build(BuildContext context) {
+    final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         LayoutBuilder(
           builder: (context, constraints) {
             const title = Text(
               '资源明细',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             );
             final tabs = SizedBox(
               width: constraints.maxWidth < 420 ? constraints.maxWidth : 420,
@@ -113,14 +113,14 @@ class _ResourceDetailsState extends State<ResourceDetails> {
                     DataCell(
                       Text(
                         estimate(
-                          TronGovernance.stake(widget.account, resource),
+                          TronGovernance.totalStake(widget.account, resource),
                           resource,
                         ),
                       ),
                     ),
                     DataCell(
                       Text(
-                        '${formatEther(TronGovernance.stake(widget.account, resource), 6)} TRX',
+                        '${formatBalance(TronGovernance.totalStake(widget.account, resource), 6)} TRX',
                       ),
                     ),
                     const DataCell(Text('—')),
@@ -206,7 +206,7 @@ class _ResourceDetailsState extends State<ResourceDetails> {
                           Text(row['resource'] == 'ENERGY' ? '能量' : '带宽'),
                         ),
                         DataCell(Text(expiry(row['expires'] as BigInt))),
-                        DataCell(Text(formatEther(row['sun'] as BigInt, 6))),
+                        DataCell(Text(formatBalance(row['sun'] as BigInt, 6))),
                         if (tab == 2) ...[
                           const DataCell(Text('—')),
                           const DataCell(Text('—')),
@@ -250,12 +250,20 @@ class _ResourceDetailsState extends State<ResourceDetails> {
           ),
         const SizedBox(height: 12),
         const Text(
-          'Stake 2.0 明细；资源数量按当前全网兑换比例估算。最后操作时间及昨日统计暂无数据，以 — 显示。',
+          'Stake 2.0 明细；质押获得包含已代理给他人的质押本金。资源数量按当前全网兑换比例估算。最后操作时间及昨日统计暂无数据，以 — 显示。',
           style: TextStyle(fontSize: 12),
         ),
       ],
-    ),
-  );
+    );
+    return widget.embedded
+        ? content
+        : ShadCard(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            child: content,
+          );
+  }
+
   Widget table(List<String> headers, List<DataRow> rows) {
     final hasActions = headers.last == '操作';
     final dataColumns = headers.length - (hasActions ? 1 : 0);

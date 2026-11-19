@@ -5,10 +5,22 @@ import WebKit
 class MainFlutterWindow: NSWindow {
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
-    let windowFrame = NSRect(x: self.frame.origin.x, y: self.frame.origin.y, width: 1200, height: 800)
-    self.minSize = NSSize(width: 1000, height: 680)
+    let windowFrame = NSRect(x: self.frame.origin.x, y: self.frame.origin.y, width: 1200, height: 860)
+    self.minSize = NSSize(width: 1000, height: 860)
     self.contentViewController = flutterViewController
-    self.setFrame(windowFrame, display: true)
+    // Use the default size only on first launch; AppKit persists subsequent
+    // window moves and resizes in this app's preferences.
+    let frameName = NSWindow.FrameAutosaveName("LinkWalletMainWindow")
+    if !self.setFrameUsingName(frameName, force: true) {
+      self.setFrame(windowFrame, display: true)
+    }
+    if self.frame.height < self.minSize.height {
+      var restoredFrame = self.frame
+      restoredFrame.origin.y -= self.minSize.height - restoredFrame.height
+      restoredFrame.size.height = self.minSize.height
+      self.setFrame(restoredFrame, display: true)
+    }
+    self.setFrameAutosaveName(frameName)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     flutterViewController.registrar(forPlugin: "MarketChart").register(

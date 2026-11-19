@@ -135,6 +135,16 @@ class TronGovernance {
       (account['frozenV2'] as List? ?? [])
           .where((e) => (e['type'] ?? 'BANDWIDTH') == resource)
           .fold(BigInt.zero, (sum, e) => sum + number(e['amount']));
+
+  /// Owned Stake 2.0 principal includes resources currently delegated out.
+  static BigInt totalStake(Map account, String resource) {
+    final Map energy = account['account_resource'] as Map? ?? {};
+    final delegated = resource == 'ENERGY'
+        ? energy['delegated_frozenV2_balance_for_energy']
+        : account['delegated_frozenV2_balance_for_bandwidth'];
+    return stake(account, resource) + number(delegated);
+  }
+
   static Map<String, BigInt> votes(Map account) => {
     for (final vote in account['votes'] as List? ?? [])
       oc.TronAddress(vote['vote_address'] as String).address: number(

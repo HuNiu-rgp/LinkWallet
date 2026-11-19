@@ -9,6 +9,11 @@ import 'amount.dart';
 
 class ChainService {
   final Chain chain;
+  // Null retains the generic account history API; a set requests asset transfers only.
+  Set<String>? historyTokenContracts;
+  bool paginateHistory = false;
+  Map<String, dynamic>? historyCursor;
+  Map<String, dynamic>? nextHistoryCursor;
   final http.Client httpClient;
   late final Web3Client client = Web3Client(chain.rpc, httpClient);
   ChainService(this.chain, {http.Client? httpClient})
@@ -109,13 +114,22 @@ class ChainService {
   }
 
   Future<List<Map<String, dynamic>>> history(String address) async {
+    nextHistoryCursor = null;
+    final batchSize = paginateHistory ? 7 : 25;
     if (chain.family == Family.solana) {
       final items =
           await rpc('getSignaturesForAddress', [
                 address,
-                {'limit': 25},
+                {
+                  'limit': batchSize,
+                  if (historyCursor?['before'] != null)
+                    'before': historyCursor!['before'],
+                },
               ])
               as List;
+      if (paginateHistory && items.length == batchSize) {
+        nextHistoryCursor = {'before': items.last['signature']};
+      }
       return items
           .map(
             (e) => <String, dynamic>{
@@ -132,14 +146,32 @@ class ChainService {
           .toList();
     }
     if (chain.family == Family.tron) {
-      Future<List> fetch(String suffix) async {
-        final r = await _tronRequest(
-          () => httpClient.get(
+      final cursors = Map<String, dynamic>.from(
+        historyCursor?['streams'] as Map? ?? {},
+      );
+      final next = <String, String>{};
+      final boundaries = <int>[];
+      Future<List> fetch(String suffix, {String? contract}) async {
+        final key = '$suffix:${contract ?? ''}';
+        if (paginateHistory &&
+            historyCursor != null &&
+            !cursors.containsKey(key)) {
+          return [];
+        }
+        final uri =
             Uri.parse(
-              '${chain.rpc}/v1/accounts/$address/transactions$suffix?limit=25&only_confirmed=true&order_by=block_timestamp,desc',
-            ),
-          ),
-        );
+              '${chain.rpc}/v1/accounts/$address/transactions$suffix',
+            ).replace(
+              queryParameters: {
+                'limit': '$batchSize',
+                'only_confirmed': 'true',
+                'order_by': 'block_timestamp,desc',
+                'contract_address': ?contract,
+                if (cursors[key] != null)
+                  'fingerprint': cursors[key].toString(),
+              },
+            );
+        final r = await _tronRequest(() => httpClient.get(uri));
         if (r.statusCode == 429) throw StateError('公共节点请求过于频繁（429），请稍后重试');
         if (r.statusCode != 200) {
           throw StateError('交易记录服务不可用 (${r.statusCode})');
@@ -148,55 +180,91 @@ class ChainService {
         if (body['success'] == false || body['data'] is! List) {
           throw StateError('交易记录响应无效');
         }
-        return body['data'] as List;
+        final rows = body['data'] as List;
+        final fingerprint = body['meta']?['fingerprint'] as String?;
+        if (paginateHistory &&
+            fingerprint != null &&
+            fingerprint.isNotEmpty &&
+            fingerprint != cursors[key] &&
+            rows.isNotEmpty) {
+          next[key] = fingerprint;
+          boundaries.add((rows.last['block_timestamp'] as num?)?.toInt() ?? 0);
+        }
+        return rows;
       }
 
-      final pages = await Future.wait([fetch(''), fetch('/trc20')]);
+      final pages = await Future.wait([
+        fetch(''),
+        if (historyTokenContracts == null)
+          fetch('/trc20')
+        else
+          (() async => (await Future.wait([
+            for (final contract in historyTokenContracts!)
+              fetch('/trc20', contract: contract),
+          ])).expand((page) => page).toList())(),
+      ]);
       final assets = <String, Future<Map<String, dynamic>>>{};
       final native = await Future.wait(
-        pages[0].map((e) async {
-          final row = parseTronHistory(e as Map, address);
-          final contract = (e['raw_data']['contract'] as List).first as Map;
-          if (contract['type'] == 'TransferAssetContract') {
-            final value = contract['parameter']['value'] as Map;
-            final id = _tronText(value['asset_name'].toString());
-            final asset = await assets.putIfAbsent(
-              id,
-              () => tron('getassetissuebyid', {'value': id}),
-            );
-            if (asset['id'] != null) {
-              final from = oc.TronAddress(
-                value['owner_address'] as String,
-              ).address;
-              final to = oc.TronAddress(value['to_address'] as String).address;
-              row.addAll({
-                'incoming': to == address,
-                'counterparty': to == address ? from : to,
-                'from': from,
-                'to': to,
-                'amount': formatEther(
-                  BigInt.parse(value['amount'].toString()),
-                  asset['precision'] as int? ?? 0,
-                ),
-                'symbol': _tronText(
-                  (asset['abbr'] ?? asset['name'] ?? id).toString(),
-                ),
-                'assetId': id,
-              });
-            }
-          }
-          return row;
-        }),
+        pages[0]
+            .where(
+              (e) =>
+                  historyTokenContracts == null ||
+                  e['raw_data']['contract'][0]['type'] == 'TransferContract',
+            )
+            .map((e) async {
+              final row = parseTronHistory(e as Map, address);
+              final contract = (e['raw_data']['contract'] as List).first as Map;
+              if (contract['type'] == 'TransferAssetContract') {
+                final value = contract['parameter']['value'] as Map;
+                final id = _tronText(value['asset_name'].toString());
+                final asset = await assets.putIfAbsent(
+                  id,
+                  () => tron('getassetissuebyid', {'value': id}),
+                );
+                if (asset['id'] != null) {
+                  final from = oc.TronAddress(
+                    value['owner_address'] as String,
+                  ).address;
+                  final to = oc.TronAddress(
+                    value['to_address'] as String,
+                  ).address;
+                  row.addAll({
+                    'incoming': to == address,
+                    'counterparty': to == address ? from : to,
+                    'from': from,
+                    'to': to,
+                    'amount': formatEther(
+                      BigInt.parse(value['amount'].toString()),
+                      asset['precision'] as int? ?? 0,
+                    ),
+                    'symbol': _tronText(
+                      (asset['abbr'] ?? asset['name'] ?? id).toString(),
+                    ),
+                    'assetId': id,
+                  });
+                }
+              }
+              return row;
+            }),
       );
       final tokens = pages[1]
           .where(
             (e) =>
-                e['type'] == 'Transfer' && e['token_info']?['decimals'] != null,
+                e['type'] == 'Transfer' &&
+                e['token_info']?['decimals'] != null &&
+                (historyTokenContracts == null ||
+                    historyTokenContracts!.contains(
+                      e['token_info']?['address'],
+                    )),
           )
           .map((e) => parseTrc20History(e as Map, address))
           .toList();
       final tokenHashes = tokens.map((e) => e['hash']).toSet();
-      final combined = [
+      final combined = <Map<String, dynamic>>[
+        if (paginateHistory)
+          ...((historyCursor?['buffer'] as List?) ?? []).map(
+            (e) => Map<String, dynamic>.from(e as Map),
+          ),
         ...native.where(
           (e) =>
               e['detail'] != 'TriggerSmartContract' ||
@@ -207,23 +275,73 @@ class ChainService {
       combined.sort(
         (a, b) => (b['timestampMs'] as int).compareTo(a['timestampMs'] as int),
       );
-      return combined.take(25).toList();
+      if (!paginateHistory) return combined.take(25).toList();
+      // Each stream has its own cursor. Hold rows older than the newest stream
+      // boundary until the other streams catch up, preserving global ordering.
+      final boundary = boundaries.isEmpty
+          ? null
+          : boundaries.reduce((a, b) => a > b ? a : b);
+      final ready = boundary == null
+          ? combined
+          : combined
+                .where((e) => (e['timestampMs'] as int) > boundary)
+                .toList();
+      final buffer = boundary == null
+          ? <Map<String, dynamic>>[]
+          : combined
+                .where((e) => (e['timestampMs'] as int) <= boundary)
+                .toList();
+      if (next.isNotEmpty) {
+        nextHistoryCursor = {'streams': next, 'buffer': buffer};
+      }
+      return ready;
     }
     if (chain.id == 56) throw StateError('BNB 历史记录需要区块浏览器 API Key；请使用「浏览器查看」');
     final r = await httpClient
         .get(
-          Uri.parse('${chain.explorer}/api/v2/addresses/$address/transactions'),
+          Uri.parse(
+            '${chain.explorer}/api/v2/addresses/$address/transactions',
+          ).replace(
+            queryParameters: historyCursor?.map(
+              (key, value) => MapEntry(key, value.toString()),
+            ),
+          ),
         )
         .timeout(const Duration(seconds: 20));
     if (r.statusCode != 200) throw StateError('交易记录服务暂不可用 (${r.statusCode})');
-    return ((jsonDecode(r.body) as Map)['items'] as List)
+    final body = jsonDecode(r.body) as Map;
+    if (paginateHistory &&
+        body['next_page_params'] is Map &&
+        (body['next_page_params'] as Map).isNotEmpty) {
+      nextHistoryCursor = Map<String, dynamic>.from(
+        body['next_page_params'] as Map,
+      );
+    }
+    return (body['items'] as List)
+        .where(
+          (e) =>
+              BigInt.parse(e['value']?.toString() ?? '0') > BigInt.zero &&
+              e['to']?['hash'] != null,
+        )
         .map(
           (e) => <String, dynamic>{
             'hash': e['hash'],
             'status': e['status'] ?? '待确认',
             'timestamp': e['timestamp'] ?? '',
-            'detail':
-                '${formatEther(BigInt.parse(e['value'] ?? '0'))} ${chain.symbol}',
+            'detail': '转账',
+            'amount': formatEther(
+              BigInt.parse(e['value'].toString()),
+              chain.decimals,
+            ),
+            'symbol': chain.symbol,
+            'incoming':
+                (e['to']['hash'] as String).toLowerCase() ==
+                address.toLowerCase(),
+            'counterparty':
+                (e['to']['hash'] as String).toLowerCase() ==
+                    address.toLowerCase()
+                ? (e['from']?['hash'])
+                : e['to']['hash'],
           },
         )
         .toList();

@@ -243,8 +243,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('质押获取资源'), findsOneWidget);
-    expect(find.text('自行质押：100 TRX'), findsOneWidget);
+    expect(find.text('可用 TRX'), findsOneWidget);
+    expect(find.text('自行质押：100.000 TRX'), findsOneWidget);
     await tester.tap(find.text('投票'));
     await tester.pumpAndSettle();
     expect(find.text('分配 50 票'), findsOneWidget);
@@ -314,7 +314,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(changed!.address, sr);
       expect(service.requested.last, sr);
-      expect(find.text('2'), findsOneWidget);
+      expect(find.text('2.000 TRX'), findsOneWidget);
       service.pendingOwner.complete({
         'balance': 1000000000,
         'votes': [
@@ -325,8 +325,8 @@ void main() {
         ],
       });
       await tester.pumpAndSettle();
-      expect(find.text('2'), findsOneWidget);
-      expect(find.text('自行质押：100 TRX'), findsNothing);
+      expect(find.text('2.000 TRX'), findsOneWidget);
+      expect(find.text('自行质押：100.000 TRX'), findsNothing);
       await tester.tap(find.text('投票'));
       await tester.pumpAndSettle();
       expect(find.text('分配 0 票'), findsOneWidget);

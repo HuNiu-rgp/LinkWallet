@@ -108,6 +108,14 @@ class ThemeController extends ChangeNotifier {
             : const Color(0xff103d30),
       );
     }
+    if (palette == 'green' && brightness == Brightness.dark) {
+      colors = colors.copyWith(
+        background: const Color(0xff141412),
+        card: const Color(0xff181816),
+        muted: const Color(0xff252522),
+        border: const Color(0xff333330),
+      );
+    }
     return ShadThemeData(brightness: brightness, colorScheme: colors);
   }
 

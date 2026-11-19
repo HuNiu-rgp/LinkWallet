@@ -3,6 +3,7 @@ import '../../core/wallet.dart';
 import '../../app/theme_controller.dart';
 import '../../app/wallet_shell.dart';
 import '../dashboard/dashboard_page.dart';
+import '../governance/tron_governance_page.dart';
 import '../settings/settings_page.dart';
 import '../address_book/address_book_page.dart';
 import 'wallet_controller.dart';
@@ -42,8 +43,20 @@ class _WalletHomeState extends State<WalletHome> {
     listenable: Listenable.merge([controller, controller.tokens]),
     builder: (context, _) => WalletShell(
       c: controller,
+      actions: actions,
       theme: widget.theme,
-      child: controller.page == 4
+      scrollable: controller.governanceVote == null,
+      child: controller.governanceVote != null && controller.selected != null
+          ? TronGovernancePage(
+              embedded: true,
+              account: controller.selected!,
+              accounts: controller.accounts,
+              store: controller.store,
+              vote: controller.governanceVote!,
+              onClose: controller.closeGovernance,
+              onVoteChanged: (vote) => controller.openGovernance(vote: vote),
+            )
+          : controller.page == 4
           ? const AddressBookPage()
           : controller.page == 3
           ? SettingsPage(c: controller, actions: actions, theme: widget.theme)

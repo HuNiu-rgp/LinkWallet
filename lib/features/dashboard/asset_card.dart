@@ -13,7 +13,13 @@ import '../wallets/wallet_controller.dart';
 class AssetCard extends StatelessWidget {
   final WalletController c;
   final WalletActions actions;
-  const AssetCard({super.key, required this.c, required this.actions});
+  final bool embedded;
+  const AssetCard({
+    super.key,
+    required this.c,
+    required this.actions,
+    this.embedded = false,
+  });
   Future<void> add(BuildContext context) async {
     final account = c.selected;
     if (account == null) return;
@@ -35,16 +41,15 @@ class AssetCard extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => walletCard(
-    context,
-    Column(
+  Widget build(BuildContext context) {
+    final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             const Text(
               '我的资产',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
             ),
             const SizedBox(width: 8),
             Tooltip(
@@ -68,17 +73,19 @@ class AssetCard extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            ShadButton.outline(
+            ShadButton.ghost(
+              height: 32,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
               onPressed: () => add(context),
               child: const Text('＋ 添加代币'),
             ),
           ],
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
         Row(
           children: [
-            ChainLogo(chain: c.chain, size: 42),
-            const SizedBox(width: 14),
+            ChainLogo(chain: c.chain, size: 34),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 c.chain.symbol,
@@ -91,20 +98,29 @@ class AssetCard extends StatelessWidget {
                 c.hidden
                     ? '••••'
                     : '${c.balance == null ? '—' : formatBalance(c.balance!, c.chain.decimals)} ${c.chain.symbol}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.w600),
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
               ),
             ),
-            const SizedBox(width: 20),
-            _transferButton(),
             const SizedBox(width: 8),
+            _transferButton(),
+            _actionDivider(context),
             _tradeButton(),
           ],
         ),
+        Divider(height: 24, color: context.palette.border),
         ...c.tokens.balances.map(
           (entry) => Padding(
-            padding: const EdgeInsets.only(top: 20),
-            child: _tokenRow(context, entry),
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                _tokenRow(context, entry),
+                Divider(height: 24, color: context.palette.border),
+              ],
+            ),
           ),
         ),
         if (c.tokens.configurationError != null)
@@ -127,15 +143,17 @@ class AssetCard extends StatelessWidget {
             ),
           ),
       ],
-    ),
-  );
+    );
+    return embedded ? content : walletCard(context, content);
+  }
+
   Widget _tokenRow(BuildContext context, TokenBalance entry) {
     final token = entry.token;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        TokenLogo(token: token, size: 42),
-        const SizedBox(width: 14),
+        TokenLogo(token: token, size: 34),
+        const SizedBox(width: 10),
         Expanded(
           child: Text(
             token.symbol,
@@ -153,7 +171,7 @@ class AssetCard extends StatelessWidget {
                 : entry.amount == null
                 ? '—'
                 : '${formatBalance(entry.amount!, token.decimals)} ${token.symbol}',
-            textAlign: TextAlign.center,
+            textAlign: TextAlign.right,
             style: TextStyle(
               fontWeight: FontWeight.w600,
               color: entry.error == null
@@ -162,7 +180,7 @@ class AssetCard extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 20),
+        const SizedBox(width: 8),
         if (entry.error != null)
           ShadButton.ghost(
             width: 30,
@@ -182,24 +200,34 @@ class AssetCard extends StatelessWidget {
             child: const Icon(Icons.close, size: 15),
           ),
         _transferButton(token: token),
-        const SizedBox(width: 8),
+        _actionDivider(context),
         _tradeButton(token: token),
       ],
     );
   }
 
-  Widget _tradeButton({TokenDefinition? token}) => ShadButton.outline(
+  Widget _actionDivider(BuildContext context) => SizedBox(
+    width: 8,
+    height: 16,
+    child: VerticalDivider(
+      width: 8,
+      thickness: 1,
+      color: context.palette.border,
+    ),
+  );
+
+  Widget _tradeButton({TokenDefinition? token}) => ShadButton.ghost(
     key: ValueKey('trade-${token?.id ?? 'native'}'),
     height: 32,
-    padding: const EdgeInsets.symmetric(horizontal: 12),
+    padding: const EdgeInsets.symmetric(horizontal: 6),
     onPressed: () => actions.openChart(token: token),
     child: const Text('交易'),
   );
 
-  Widget _transferButton({TokenDefinition? token}) => ShadButton.outline(
+  Widget _transferButton({TokenDefinition? token}) => ShadButton.ghost(
     key: ValueKey('transfer-${token?.id ?? 'native'}'),
     height: 32,
-    padding: const EdgeInsets.symmetric(horizontal: 12),
+    padding: const EdgeInsets.symmetric(horizontal: 6),
     onPressed: c.selected?.signing == true
         ? () => actions.send(token: token)
         : null,

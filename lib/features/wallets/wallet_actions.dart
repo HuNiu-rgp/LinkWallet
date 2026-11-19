@@ -9,7 +9,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/wallet.dart';
 import '../../core/token.dart';
 import '../market/market_chart_page.dart';
-import '../governance/tron_governance_page.dart';
 import '../../core/backup_codec.dart';
 import '../../shared/theme_context.dart';
 import '../../shared/widgets/form_fields.dart';
@@ -49,6 +48,76 @@ class WalletActions {
 
   Future<void> copy(String text) async {
     await Clipboard.setData(ClipboardData(text: text));
+  }
+
+  Future<void> deleteWallet(Account account) async {
+    var busy = false;
+    String? error;
+    await showShadDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, update) => PopScope(
+          canPop: !busy,
+          child: ShadDialog(
+            title: const Text('删除钱包'),
+            constraints: const BoxConstraints(maxWidth: 480),
+            actions: [
+              ShadButton.outline(
+                onPressed: busy ? null : () => Navigator.pop(ctx),
+                child: const Text('取消'),
+              ),
+              ShadButton.destructive(
+                onPressed: busy
+                    ? null
+                    : () async {
+                        update(() {
+                          busy = true;
+                          error = null;
+                        });
+                        try {
+                          await c.deleteAccount(account);
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        } catch (_) {
+                          if (ctx.mounted) {
+                            update(() {
+                              busy = false;
+                              error = '删除失败，请检查钥匙串权限后重试';
+                            });
+                          }
+                        }
+                      },
+                child: Text(busy ? '正在删除…' : '删除钱包'),
+              ),
+            ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  account.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                SelectableText(account.address),
+                const SizedBox(height: 16),
+                Text(
+                  account.signing
+                      ? '将删除本机钱包记录和对应私钥；若同一私钥仍被其他钱包使用则保留。请先确认已备份私钥，删除后需重新导入才能恢复。链上资产不会被删除。'
+                      : '将从本机移除此观察钱包，之后可通过地址重新添加。',
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    error!,
+                    style: TextStyle(color: ctx.palette.destructive),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> renameWallet(Account account) async {
@@ -120,23 +189,8 @@ class WalletActions {
   }
 
   Future<void> openTronGovernance({required bool vote}) async {
-    final account = c.selected;
-    if (c.chain.family != Family.tron || account == null || !mounted) return;
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => TronGovernancePage(
-          account: account,
-          accounts: List.of(c.accounts),
-          store: store,
-          vote: vote,
-          onAccountChanged: c.selectAccount,
-        ),
-      ),
-    );
-    if (mounted) {
-      c.refreshResources();
-      c.refresh();
-    }
+    if (!mounted) return;
+    c.openGovernance(vote: vote);
   }
 
   final Set<String> _openingCharts = {};
@@ -289,7 +343,7 @@ class WalletActions {
       c.selected = result;
       c.chain = result.preferredChain;
     });
-    c.refresh();
+    c.showWallet();
   }
 
   Future<void> exportAddresses() async {
