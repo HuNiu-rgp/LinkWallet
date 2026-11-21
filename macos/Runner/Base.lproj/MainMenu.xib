@@ -302,6 +302,12 @@
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <menu key="submenu" title="Window" systemMenu="window" id="Td7-aD-5lo">
                         <items>
+                            <menuItem title="Hide Window" keyEquivalent="w" id="LW-hide-window">
+                                <modifierMask key="keyEquivalentModifierMask" command="YES"/>
+                                <connections>
+                                    <action selector="hideWindow:" target="-1" id="LW-hide-window-action"/>
+                                </connections>
+                            </menuItem>
                             <menuItem title="Minimize" keyEquivalent="m" id="OY7-WF-poV">
                                 <connections>
                                     <action selector="performMiniaturize:" target="-1" id="VwT-WD-YPe"/>

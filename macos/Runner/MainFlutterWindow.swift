@@ -1,8 +1,17 @@
 import Cocoa
 import FlutterMacOS
 import WebKit
+import UserNotifications
 
 class MainFlutterWindow: NSWindow {
+  private var walletStatusBar: WalletStatusBar?
+  private var transferNotifications: TransferNotificationBridge?
+
+  @IBAction func hideWindow(_ sender: Any?) {
+    saveFrame(usingName: NSWindow.FrameAutosaveName("LinkWalletMainWindow"))
+    orderOut(sender)
+  }
+
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     let windowFrame = NSRect(x: self.frame.origin.x, y: self.frame.origin.y, width: 1200, height: 860)
@@ -21,6 +30,11 @@ class MainFlutterWindow: NSWindow {
       self.setFrame(restoredFrame, display: true)
     }
     self.setFrameAutosaveName(frameName)
+
+    self.isReleasedWhenClosed = false
+    walletStatusBar = WalletStatusBar(messenger: flutterViewController.engine.binaryMessenger, window: self)
+
+    transferNotifications = TransferNotificationBridge(messenger: flutterViewController.engine.binaryMessenger, window: self)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     flutterViewController.registrar(forPlugin: "MarketChart").register(
@@ -106,5 +120,58 @@ final class MarketChartView: NSView, WKNavigationDelegate, WKUIDelegate {
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
     if (error as NSError).code == NSURLErrorCancelled { return }
     webView.loadHTMLString("<html><body><p>行情加载失败，请检查网络后点击上方刷新。</p></body></html>", baseURL: nil)
+  }
+}
+
+// Local notifications use public transaction data only; no signing access.
+final class TransferNotificationBridge: NSObject, UNUserNotificationCenterDelegate {
+  private let channel: FlutterMethodChannel
+  private weak var window: NSWindow?
+  init(messenger: FlutterBinaryMessenger, window: NSWindow) {
+    self.channel = FlutterMethodChannel(name: "linkwallet/transfer_notifications", binaryMessenger: messenger)
+    self.window = window
+    super.init()
+    let center = UNUserNotificationCenter.current()
+    center.delegate = self
+    channel.setMethodCallHandler { call, result in
+      switch call.method {
+      case "requestPermission":
+        center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+          DispatchQueue.main.async {
+            if let error = error { result(FlutterError(code: "notification_permission", message: error.localizedDescription, details: nil)) }
+            else { result(granted) }
+          }
+        }
+      case "show":
+        guard let args = call.arguments as? [String: String], let id = args["id"],
+              let title = args["title"], let body = args["body"] else {
+          result(FlutterError(code: "invalid_notification", message: "Invalid notification", details: nil)); return
+        }
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil)) { error in
+          DispatchQueue.main.async {
+            if let error = error { result(FlutterError(code: "notification_delivery", message: error.localizedDescription, details: nil)) }
+            else { result(nil) }
+          }
+        }
+      default: result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+  func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+                              withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+    completionHandler([.banner, .list, .sound])
+  }
+  func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                              withCompletionHandler completionHandler: @escaping () -> Void) {
+    DispatchQueue.main.async { [weak self] in
+      NSApp.activate(ignoringOtherApps: true)
+      if self?.window?.isMiniaturized == true { self?.window?.deminiaturize(nil) }
+      self?.window?.makeKeyAndOrderFront(nil)
+      completionHandler()
+    }
   }
 }

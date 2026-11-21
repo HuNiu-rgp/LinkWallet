@@ -8,6 +8,9 @@ import '../settings/settings_page.dart';
 import '../address_book/address_book_page.dart';
 import 'wallet_controller.dart';
 import 'wallet_actions.dart';
+import '../../platform/wallet_menu_bar.dart';
+import 'asset_refresh_scheduler.dart';
+import '../monitoring/wallet_transfer_monitor.dart';
 
 class WalletHome extends StatefulWidget {
   final WalletStore? store;
@@ -26,14 +29,28 @@ class _WalletHomeState extends State<WalletHome> {
     controller,
     () => mounted,
   );
+  late final WalletMenuBar menuBar = WalletMenuBar(controller);
+  late final AssetRefreshScheduler assetRefresh = AssetRefreshScheduler(
+    controller,
+  );
+
+  late final transferMonitor = WalletTransferMonitor(controller);
+
   @override
   void initState() {
     super.initState();
-    controller.load();
+    menuBar.start();
+    controller.load().then((_) {
+      if (mounted) transferMonitor.start();
+    });
+    assetRefresh.start();
   }
 
   @override
   void dispose() {
+    transferMonitor.dispose();
+    assetRefresh.dispose();
+    menuBar.dispose();
     controller.dispose();
     super.dispose();
   }
@@ -59,7 +76,12 @@ class _WalletHomeState extends State<WalletHome> {
           : controller.page == 4
           ? const AddressBookPage()
           : controller.page == 3
-          ? SettingsPage(c: controller, actions: actions, theme: widget.theme)
+          ? SettingsPage(
+              c: controller,
+              actions: actions,
+              theme: widget.theme,
+              monitor: transferMonitor,
+            )
           : DashboardPage(c: controller, actions: actions),
     ),
   );

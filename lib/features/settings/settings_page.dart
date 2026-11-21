@@ -6,14 +6,18 @@ import '../../app/theme_controller.dart';
 import '../wallets/wallet_controller.dart';
 import '../wallets/wallet_actions.dart';
 import 'appearance_settings.dart';
+import '../monitoring/wallet_transfer_monitor.dart';
+import 'transfer_monitor_settings.dart';
 
 class SettingsPage extends StatelessWidget {
+  final WalletTransferMonitor? monitor;
   final WalletController c;
   final WalletActions actions;
   final ThemeController theme;
   const SettingsPage({
     super.key,
     required this.c,
+    this.monitor,
     required this.actions,
     required this.theme,
   });
@@ -27,6 +31,10 @@ class SettingsPage extends StatelessWidget {
       ),
       SizedBox(height: 24),
       AppearanceSettings(controller: theme),
+      if (monitor != null) ...[
+        const SizedBox(height: 20),
+        TransferMonitorSettings(monitor: monitor!),
+      ],
       SizedBox(height: 20),
       walletCard(
         context,
